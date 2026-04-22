@@ -1,54 +1,56 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const path = require("path");
+const cors = require("cors");
 
-// ✅ Load env (Render automatically provides env vars)
 dotenv.config();
 
-// ✅ Imports
+// Imports
 const connectDB = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
-// ✅ Connect DB
+// DB connect
 connectDB();
 
 const app = express();
 
-// ✅ Middleware (IMPORTANT)
+// ✅ CRITICAL FIXES
+app.use(cors({
+  origin: "*", // allow Vercel frontend
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true,
+}));
+
+app.options("*", cors());
 app.use(express.json());
 
-// ✅ API Routes (IMPORTANT)
+// Routes
 app.use("/api/user", userRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/message", messageRoutes);
 
-// ✅ Test route (so homepage works)
+// Test route
 app.get("/", (req, res) => {
   res.send("Backend is running 🚀");
 });
 
-// ❌ REMOVE FRONTEND SERVING (CAUSE OF YOUR ERROR)
-// (We will deploy frontend separately later)
-
-// ✅ Error Handling
+// Error middleware
 app.use(notFound);
 app.use(errorHandler);
 
-// ✅ Server setup
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
   console.log(`Server running on PORT ${PORT}`);
 });
 
-// ✅ Socket.io
+// Socket.io
 const io = require("socket.io")(server, {
   pingTimeout: 60000,
   cors: {
-    origin: "*", // allow all for now (fix later if needed)
+    origin: "*",
   },
 });
 
@@ -62,7 +64,6 @@ io.on("connection", (socket) => {
 
   socket.on("join chat", (room) => {
     socket.join(room);
-    console.log("User Joined Room: " + room);
   });
 
   socket.on("typing", (room) => socket.in(room).emit("typing"));
@@ -71,7 +72,7 @@ io.on("connection", (socket) => {
   socket.on("new message", (newMessageRecieved) => {
     const chat = newMessageRecieved.chat;
 
-    if (!chat.users) return console.log("chat.users not defined");
+    if (!chat.users) return;
 
     chat.users.forEach((user) => {
       if (user._id == newMessageRecieved.sender._id) return;
